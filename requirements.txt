@@ -4,6 +4,7 @@ langchain-community>=0.0.20
 langchain-core>=0.1.23
 langchain-google-genai>=1.0.0
 langchainhub>=0.1.14
+langchain-experimental>=0.3.4
 
 # Data manipulation and analysis
 pandas>=2.0.0
@@ -56,6 +57,7 @@ lxml>=4.9.0
 # For better SSL handling (often needed on Mac)
 certifi>=2023.7.22
 
-# Optional: For caching (can improve performance)
+# Optional: For caching and logging (can improve performance)
 diskcache>=5.6.0
 numexpr>=2.11.0
+loguru>=0.7.3
