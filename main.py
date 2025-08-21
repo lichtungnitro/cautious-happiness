@@ -7,6 +7,8 @@ import sys
 from typing import Optional
 
 import pandas as pd
+from pandas import DataFrame
+from typing import cast
 import akshare as ak
 import requests
 from pydantic import BaseModel, Field
@@ -33,19 +35,26 @@ class StockHistoryInput(BaseModel):
     timeout: Optional[float] = Field(None, description="Request timeout in seconds.")
 
 
+class StockNoticeInput(BaseModel):
+    """Input for fetching stock notifications/announcements."""
+    notice_type: str = Field(..., description="Announcement type: 全部, 重大事项, 财务报告, 融资公告, 风险提示, 资产重组, 信息变更, 持股变动")
+    date: str = Field(..., description="Specific date in YYYYMMDD format (e.g., '20220511')")
+    stock_code: Optional[str] = Field(None, description="Optional A-share stock code to filter results (e.g., '000001')")
+
+
 @tool("get_current_time")
 def get_current_time(query: str = "beijing") -> str:
     """Get current time in Beijing timezone.
-    
+
     Args:
         query: Timezone (default: 'beijing')
-    
+
     Returns:
         Current time in Beijing timezone as string
     """
     from datetime import datetime
     from zoneinfo import ZoneInfo
-    
+
     beijing_tz = ZoneInfo("Asia/Shanghai")
     current_time = datetime.now(beijing_tz)
     return f"Current Beijing time: {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
@@ -53,11 +62,41 @@ def get_current_time(query: str = "beijing") -> str:
 
 @tool("get_historic_stock_data")
 def get_historic_stock_data(query: str) -> str:
-    """Retrieve historic A-share stock market data.
+    """Retrieve historical A-share stock market data.
 
-    Input format: "symbol=STOCK_CODE,start_date=YYYYMMDD,end_date=YYYYMMDD,period=daily,adjust=hfq"
-    Example: "symbol=000001,start_date=20230801,end_date=20230810,period=daily,adjust=hfq"
-    """
+        Fetches historical stock market data for Chinese A-share stocks based on the
+        provided query parameters. The function accepts a formatted query string and
+        returns tabular stock data or an error message.
+
+        Args:
+            query (str): Comma-separated query string containing stock parameters in
+                key=value format. Required parameters include symbol, start_date,
+                end_date, and period. Optional parameters include adjust and timeout.
+
+                Required parameters:
+                    - symbol: A-share stock code (e.g., "000001")
+                    - start_date: Start date in YYYYMMDD format (e.g., "20230801")
+                    - end_date: End date in YYYYMMDD format (e.g., "20230810")
+                    - period: Data frequency ("daily", "weekly", or "monthly")
+
+                Optional parameters:
+                    - adjust: Price adjustment method ("qfq" for front-adjusted,
+                             "hfq" for back-adjusted, or empty for unadjusted,
+                             default: empty)
+                    - timeout: Request timeout in seconds (default: system default)
+
+        Returns:
+            str: Tabular representation of historical stock data, or error message
+                 if data retrieval fails.
+
+        Example:
+            > query = "symbol=000001,start_date=20230801,end_date=20230810,period=daily,adjust=qfq"
+            > result = get_historical_stock_data(query)
+
+        Raises:
+            This function handles errors internally and returns error messages as strings
+            rather than raising exceptions.
+        """
     try:
         params = {}
         for item in query.split(','):
@@ -100,13 +139,102 @@ def get_historic_stock_data(query: str) -> str:
         return f"Error fetching data: {str(e)}"
 
 
+@tool("get_stock_notifications")
+def get_stock_notifications(query: str) -> str:
+    """Retrieve stock announcements and notifications for Chinese A-share stocks.
+
+    Fetches stock announcements and notifications from Chinese A-share market based on
+    the provided query parameters. The API requires specific date and announcement type,
+    with optional stock code filtering.
+
+    Args:
+        query (str): Comma-separated query string containing parameters in
+            key=value format. Required parameters include notice_type and date.
+            Optional parameter stock_code can be provided to filter specific stock.
+
+            Required parameters:
+                - notice_type: Announcement type ("全部", "重大事项", "财务报告",
+                              "融资公告", "风险提示", "资产重组", "信息变更", "持股变动")
+                - date: Specific date in YYYYMMDD format (e.g., "20220511")
+
+            Optional parameters:
+                - stock_code: A-share stock code to filter results (e.g., "000001")
+
+    Returns:
+        str: Tabular representation of stock announcements, or error message
+             if data retrieval fails.
+
+    Example:
+        >>> query = "notice_type=财务报告,date=20220511"
+        >>> result = get_stock_notifications(query)
+        >>> print(result)
+        # Returns announcements for financial reports on 2022-05-11
+
+        >>> query = "notice_type=重大事项,date=20220511,stock_code=000001"
+        >>> result = get_stock_notifications(query)
+        >>> print(result)
+        # Returns major event announcements for stock 000001 on 2022-05-11
+
+    Raises:
+        This function handles errors internally and returns error messages as strings
+        rather than raising exceptions.
+    """
+    try:
+        params = {}
+        for item in query.split(','):
+            if '=' in item:
+                key, value = item.strip().split('=', 1)
+                params[key.strip()] = value.strip("'\"")
+
+        notice_type = params.get('notice_type')
+        date = params.get('date')
+        stock_code = params.get('stock_code')
+
+        if not notice_type or not date:
+            return "Error: Missing required parameters. Format: notice_type=TYPE,date=YYYYMMDD[,stock_code=CODE]"
+
+        # Validate notice_type
+        valid_types = {"全部", "重大事项", "财务报告", "融资公告", "风险提示", "资产重组", "信息变更", "持股变动"}
+        if notice_type not in valid_types:
+            return f"Error: Invalid notice_type. Valid options: {', '.join(valid_types)}"
+
+        # Call API with required parameters
+        df = cast(DataFrame, ak.stock_notice_report(symbol=notice_type, date=date))
+
+        if df.empty:
+            return f"No announcements found for {notice_type} on {date}"
+
+        # Filter by stock code if provided
+        if stock_code:
+            filtered_df = cast(DataFrame, df[df['代码'] == stock_code])
+
+            if filtered_df.empty:
+                return f"No announcements found for stock {stock_code} on {date}"
+
+            if len(filtered_df) > 10:
+                summary_df = filtered_df.head(10)
+                return f"Announcements for {stock_code} ({len(filtered_df)} total):\n{summary_df.to_string()}"
+            else:
+                return f"Announcements for {stock_code}:\n{filtered_df.to_string()}"
+        else:
+            # Return all announcements for the type/date
+            if len(df) > 10:
+                summary_df = df.head(10)
+                return f"All {notice_type} announcements on {date} ({len(df)} total):\n{summary_df.to_string()}"
+            else:
+                return f"All {notice_type} announcements on {date}:\n{df.to_string()}"
+
+    except Exception as e:
+        return f"Error fetching notifications: {str(e)}"
+
+
 def send_bark_notification(title: str, content: str) -> None:
     """Send notification via Bark service."""
     bark_key = os.getenv('BARK_API_KEY')
     if not bark_key:
         logger.warning("BARK_API_KEY not found. Skipping notification.")
         return
-    
+
     try:
         url = f"https://api.day.app/{bark_key}/{title}/{content}"
         response = requests.get(url, timeout=10)
@@ -116,6 +244,42 @@ def send_bark_notification(title: str, content: str) -> None:
             logger.warning(f"Failed to send Bark notification: {response.status_code}")
     except Exception as e:
         logger.error(f"Error sending Bark notification: {e}")
+
+
+def send_bark_critical_alert(title: str, content: str) -> None:
+    """Send critical alert via Bark service for investment decisions."""
+    bark_key = os.getenv('BARK_API_KEY')
+    if not bark_key:
+        logger.warning("BARK_API_KEY not found. Skipping critical alert.")
+        return
+
+    try:
+        url = f"https://api.day.app/{bark_key}/{title}/{content}?level=critical&volume=3"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            logger.info("Bark critical alert sent successfully")
+        else:
+            logger.warning(f"Failed to send Bark critical alert: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error sending Bark critical alert: {e}")
+
+
+def check_critical_decision(response: str) -> bool:
+    """Check if response contains long/short investment decisions."""
+    response_lower = response.lower()
+
+    # Keywords that indicate investment decisions
+    decision_keywords = [
+        'long', 'short', 'buy', 'sell', 'hold', 'position',
+        '买入', '卖出', '持有', '做多', '做空', '建仓', '平仓'
+    ]
+
+    # Check for investment decision patterns
+    for keyword in decision_keywords:
+        if keyword in response_lower:
+            return True
+
+    return False
 
 
 def create_agent():
@@ -128,12 +292,12 @@ def create_agent():
         sys.exit(1)
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         google_api_key=api_key,
         temperature=0
     )
 
-    tools = [get_historic_stock_data, get_current_time]
+    tools = [get_historic_stock_data, get_current_time, get_stock_notifications]
 
     try:
         tools.extend([YahooFinanceNewsTool(), ShellTool()])
@@ -197,10 +361,17 @@ def main():
         print("="*50)
         print(result['output'])
 
-        # Send Bark notification
-        title = "Investment Analysis Complete"
-        content = result['output'][:200] + "..." if len(result['output']) > 200 else result['output']
-        send_bark_notification(title, content)
+        # Check for critical investment decisions
+        if check_critical_decision(result['output']):
+            title = "CRITICALwINVESTMENT DECISION"
+            content = result['output'][:300] + "..." if len(result['output']) > 300 else result['output']
+            send_bark_critical_alert(title, content)
+            logger.info("Critical investment decision detected - sent critical alert")
+        else:
+            # Send normal notification
+            title = "Investment Analysis Complete"
+            content = result['output'][:200] + "..." if len(result['output']) > 200 else result['output']
+            send_bark_notification(title, content)
 
     except Exception as e:
         logger.error(f"Failed to process query: {e}")

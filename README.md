@@ -47,17 +47,60 @@ Examples:
 
 ## Tools Available
 
-- get_historic_stock_data: A-share historical market data
-- yahoo_finance_news: Financial news and updates
-- wikipedia: General knowledge research
-- llm-math: Mathematical calculations
-- terminal: System command execution
+- **get_historic_stock_data**: A-share historical market data
+- **get_stock_notifications**: Stock announcements and notifications from Chinese A-share market
+- **yahoo_finance_news**: Financial news and updates
+- **wikipedia**: General knowledge research
+- **llm-math**: Mathematical calculations
+- **terminal**: System command execution
+
+### Stock Notifications Tool
+The new `get_stock_notifications` tool provides access to Chinese A-share market announcements:
+
+**Parameters:**
+- `notice_type`: Announcement type (required)
+  - Choices: `"全部"`, `"重大事项"`, `"财务报告"`, `"融资公告"`, `"风险提示"`, `"资产重组"`, `"信息变更"`, `"持股变动"`
+- `date`: Specific date in YYYYMMDD format (required)
+- `stock_code`: A-share stock code for filtering (optional)
+
+**Usage Examples:**
+```bash
+# Get all financial reports for a specific date
+python main.py -q "Get notifications for notice_type=财务报告,date=20220511"
+
+# Get major events for specific stock on a date
+python main.py -q "Get notifications for notice_type=重大事项,date=20220511,stock_code=000001"
+```
 
 ## Notifications
 
-The system includes Bark notification integration for analysis completion alerts:
+The system includes Bark notification integration with two notification levels:
 
-![Bark Notification](https://s2.loli.net/2025/08/21/6v7KNBHJDG3UCRo.jpg)
+### Standard Notifications
+Regular completion alerts for general analysis:
+
+<img src="https://s2.loli.net/2025/08/21/6v7KNBHJDG3UCRo.jpg" alt="Standard Notification" width="300"/>
+
+### Critical Investment Alerts
+**Enhanced critical alerts** triggered when analysis contains investment decisions (buy/sell/hold recommendations):
+
+- **Critical-level urgency** with `level=critical` parameter
+- **Volume 3** for attention-grabbing alerts
+- **Extended content** (300 chars vs 200 chars for normal notifications)
+- **Special keywords**: Detects `long`, `short`, `buy`, `sell`, `hold`, `买入`, `卖出`, `持有`, etc.
+
+<div style="display: flex; gap: 10px;">
+  <img src="https://s2.loli.net/2025/08/21/JdL9tqjQvWE8K31.jpg" alt="Critical Alert Notification" width="300"/>
+  <img src="https://s2.loli.net/2025/08/21/4yfLMgtOxlsCTDm.jpg" alt="Bark Message List" width="300"/>
+</div>
+
+### Setup
+Configure your Bark API key:
+```bash
+echo "BARK_API_KEY=your_bark_key_here" >> .env
+```
+
+Critical alerts are automatically triggered when investment decisions are detected in the analysis output.
 
 ## Project Structure
 
