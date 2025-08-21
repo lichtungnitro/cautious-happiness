@@ -61,3 +61,10 @@ certifi>=2023.7.22
 diskcache>=5.6.0
 numexpr>=2.11.0
 loguru>=0.7.3
+xmltodict>=0.14.2
+dicttoxml>=1.7.16
+
+# Fixes with racer dynamic link library call problem
+py-mini-racer>=0.6.0
+mini-racer>=0.12.4
+akracer>=0.0.13
