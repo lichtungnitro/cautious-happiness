@@ -5,6 +5,11 @@ build/
 dist/
 wheels/
 *.egg-info
+.env
 
 # Virtual environments
 .venv
+
+# Coding assistant files
+.ropeproject
+CLAUDE.md
