@@ -8,6 +8,7 @@ from typing import Optional
 
 import pandas as pd
 import akshare as ak
+import requests
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 from langchain_core.prompts import PromptTemplate
@@ -30,6 +31,24 @@ class StockHistoryInput(BaseModel):
     period: str = Field('daily', description="Data frequency: daily, weekly, or monthly.")
     adjust: Optional[str] = Field(None, description="Adjustment method: qfq, hfq, or None.")
     timeout: Optional[float] = Field(None, description="Request timeout in seconds.")
+
+
+@tool("get_current_time")
+def get_current_time(query: str = "beijing") -> str:
+    """Get current time in Beijing timezone.
+    
+    Args:
+        query: Timezone (default: 'beijing')
+    
+    Returns:
+        Current time in Beijing timezone as string
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    
+    beijing_tz = ZoneInfo("Asia/Shanghai")
+    current_time = datetime.now(beijing_tz)
+    return f"Current Beijing time: {current_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
 
 
 @tool("get_historic_stock_data")
@@ -81,6 +100,24 @@ def get_historic_stock_data(query: str) -> str:
         return f"Error fetching data: {str(e)}"
 
 
+def send_bark_notification(title: str, content: str) -> None:
+    """Send notification via Bark service."""
+    bark_key = os.getenv('BARK_API_KEY')
+    if not bark_key:
+        logger.warning("BARK_API_KEY not found. Skipping notification.")
+        return
+    
+    try:
+        url = f"https://api.day.app/{bark_key}/{title}/{content}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            logger.info("Bark notification sent successfully")
+        else:
+            logger.warning(f"Failed to send Bark notification: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error sending Bark notification: {e}")
+
+
 def create_agent():
     """Create and configure the investment analysis agent."""
     load_dotenv()
@@ -96,7 +133,7 @@ def create_agent():
         temperature=0
     )
 
-    tools = [get_historic_stock_data]
+    tools = [get_historic_stock_data, get_current_time]
 
     try:
         tools.extend([YahooFinanceNewsTool(), ShellTool()])
@@ -160,8 +197,15 @@ def main():
         print("="*50)
         print(result['output'])
 
+        # Send Bark notification
+        title = "Investment Analysis Complete"
+        content = result['output'][:200] + "..." if len(result['output']) > 200 else result['output']
+        send_bark_notification(title, content)
+
     except Exception as e:
         logger.error(f"Failed to process query: {e}")
+        # Send error notification
+        send_bark_notification("Investment Analysis Failed", str(e))
         sys.exit(1)
 
 
