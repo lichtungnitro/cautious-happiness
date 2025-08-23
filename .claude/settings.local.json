@@ -3,7 +3,17 @@
     "allow": [
       "WebFetch(domain:akshare.akfamily.xyz)",
       "mcp__Brave_Search__brave_web_search",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(/Users/nitrolichtung/Documents/project/monism-agent/.venv/bin/python:*)",
+      "Bash(.venv/bin/python:*)",
+      "mcp__Context_7__resolve-library-id",
+      "mcp__Context_7__get-library-docs",
+      "Bash(pkill:*)",
+      "Bash(uv add:*)",
+      "Bash(uv run pyright:*)",
+      "Bash(uv run python:*)"
     ],
     "deny": [],
     "ask": []
